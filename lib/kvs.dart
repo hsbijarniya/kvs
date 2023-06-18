@@ -1,25 +1,24 @@
 library kvs;
 
-import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:kvs/io/kvs_platform_interface.dart'
+    if (dart.library.html) 'package:kvs/web/kvs_platform_interface.dart';
 import 'cipher.dart';
 
-Map<String, KVS> _cache = {};
+Map<String, Completer<KVS>> _cache = {};
 
-class KVS<K, V> {
-  String name;
-  String? documentDirectory;
+class KVS<K, V> extends KVSPlatformInterface<K, V> {
   late Map<K, V> data;
-  int version = 0;
-  bool writeLock = false;
   Cipher? cipher;
+  bool writeLock = false;
+  int version = 0;
 
   KVS({
-    this.name = 'default',
-    this.documentDirectory,
+    super.name,
+    super.documentDirectory,
     this.cipher,
   });
 
@@ -32,37 +31,14 @@ class KVS<K, V> {
     Map<K, V>? initialData,
   }) async {
     if (_cache.containsKey(name)) {
-      return _cache[name] as KVS<K, V>;
+      return (_cache[name] as Completer<KVS<K, V>>).future;
     }
+
+    var completer = _cache[name] = Completer<KVS<K, V>>();
 
     Map<K, V> data = {...(initialData ?? {})};
 
     WidgetsFlutterBinding.ensureInitialized();
-
-    documentDirectory ??= (await getApplicationDocumentsDirectory()).path;
-
-    var file = File('$documentDirectory/kvs-$name.json');
-
-    if (file.existsSync()) {
-      String fileAsString;
-
-      if (cipher != null) {
-        var encryptedBytes = await file.readAsBytes();
-        var decryptedBytes = await cipher.decrypt(encryptedBytes);
-
-        fileAsString = utf8.decode(decryptedBytes);
-      } else {
-        fileAsString = await file.readAsString();
-      }
-
-      try {
-        data = jsonDecode(fileAsString);
-      } catch (error) {
-        data = {};
-      }
-    } else {
-      data = {};
-    }
 
     var kvs = KVS<K, V>(
       name: name,
@@ -70,9 +46,27 @@ class KVS<K, V> {
       cipher: cipher,
     );
 
-    _cache[name] = kvs;
+    String fileAsString;
+
+    try {
+      if (cipher != null) {
+        var encryptedBytes = await kvs.read(raw: true);
+        var decryptedBytes = await cipher.decrypt(encryptedBytes);
+
+        fileAsString = utf8.decode(decryptedBytes);
+      } else {
+        fileAsString = await kvs.read();
+      }
+
+      data = {...data, ...jsonDecode(fileAsString)};
+    } catch (error) {
+      // implemention pending for
+      // wrong key, corrupt data, file does not exists
+    }
 
     kvs.data = data;
+
+    completer.complete(kvs);
 
     return kvs;
   }
@@ -83,7 +77,6 @@ class KVS<K, V> {
 
     writeLock = true;
     int writtenVersion = version;
-    var file = File('$documentDirectory/kvs-$name.json');
 
     String fileAsString = jsonEncode(data);
 
@@ -91,9 +84,9 @@ class KVS<K, V> {
       var plainBytes = Uint8List.fromList(utf8.encode(fileAsString));
       var encryptedBytes = await cipher!.encrypt(plainBytes);
 
-      await file.writeAsBytes(encryptedBytes, flush: true);
+      await write(encryptedBytes);
     } else {
-      await file.writeAsString(fileAsString, flush: true);
+      await write(fileAsString);
     }
 
     writeLock = false;

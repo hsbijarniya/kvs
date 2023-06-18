@@ -1,3 +1,20 @@
+## 0.0.8
+
+* Bug fixes
+
+## 0.0.7
+
+* Web support added using localStorage
+* Encryption add/remove/change example added
+
+## 0.0.6
+
+* Cache now use completer
+
+## 0.0.5
+
+* Bug fixes
+
 ## 0.0.4
 
 * Instance name caching to prevent data races.

@@ -1,6 +1,6 @@
 name: kvs
 description: High performance persistant memory based key-value storage with AES256 encryption. Support all features and can be used as drop-in of Dart Map<K,V>.
-version: 0.0.2
+version: 0.0.4
 homepage: https://ensorta.com
 repository: https://github.com/hsbijarniya/kvs
 

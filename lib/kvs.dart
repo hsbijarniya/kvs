@@ -7,6 +7,8 @@ import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'cipher.dart';
 
+Map<String, KVS> _cache = {};
+
 class KVS<K, V> {
   String name;
   String? documentDirectory;
@@ -29,6 +31,10 @@ class KVS<K, V> {
     Cipher? cipher,
     Map<K, V>? initialData,
   }) async {
+    if (_cache.containsKey(name)) {
+      return _cache[name] as KVS<K, V>;
+    }
+
     Map<K, V> data = {...(initialData ?? {})};
 
     WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +69,8 @@ class KVS<K, V> {
       documentDirectory: documentDirectory,
       cipher: cipher,
     );
+
+    _cache[name] = kvs;
 
     kvs.data = data;
 
